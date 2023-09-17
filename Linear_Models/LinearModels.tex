@@ -191,7 +191,7 @@
 
 \begin{document}
 \maketitle
-\ifdefined\Shaded\renewenvironment{Shaded}{\begin{tcolorbox}[breakable, enhanced, interior hidden, frame hidden, sharp corners, borderline west={3pt}{0pt}{shadecolor}, boxrule=0pt]}{\end{tcolorbox}}\fi
+\ifdefined\Shaded\renewenvironment{Shaded}{\begin{tcolorbox}[boxrule=0pt, interior hidden, enhanced, sharp corners, borderline west={3pt}{0pt}{shadecolor}, frame hidden, breakable]}{\end{tcolorbox}}\fi
 
 \renewcommand*\contentsname{Table of Contents}
 {
@@ -207,13 +207,16 @@
 \begin{Highlighting}[]
 \ImportTok{import}\NormalTok{ numpy }\ImportTok{as}\NormalTok{ np}
 \ImportTok{import}\NormalTok{ matplotlib.pyplot }\ImportTok{as}\NormalTok{ plt}
-\ImportTok{from}\NormalTok{ sklearn.preprocessing }\ImportTok{import}\NormalTok{ add\_dummy\_feature}
-\ImportTok{from}\NormalTok{ sklearn.linear\_model }\ImportTok{import}\NormalTok{ LinearRegression}
+\ImportTok{from}\NormalTok{ sklearn.preprocessing }\ImportTok{import}\NormalTok{ add\_dummy\_feature, PolynomialFeatures}
+\ImportTok{from}\NormalTok{ sklearn.linear\_model }\ImportTok{import}\NormalTok{ LinearRegression, SGDRegressor}
+
+\ImportTok{import}\NormalTok{ warnings}
+\NormalTok{warnings.filterwarnings(}\StringTok{"ignore"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \hypertarget{the-equations}{%
-\section{The equations}\label{the-equations}}
+\section{The Equations}\label{the-equations}}
 
 \hypertarget{standard-equation}{%
 \subsection{Standard equation}\label{standard-equation}}
@@ -448,6 +451,327 @@ function with each parameter of the model
 Rather than computing them one-by-one, we vectorize the whole stuff,
 
 \(\nabla_{\theta}MSE(\theta) = \begin{bmatrix} \frac{\partial MSE(\theta)}{\partial \theta_{0}} \\ \frac{\partial MSE(\theta)}{\partial \theta_{1}} \\ \vdots \\ \frac{\partial MSE(\theta)}{\partial \theta_{n}} \end{bmatrix} = \frac{2}{m} X^{T} (X\theta - y)\)
+
+The gradient descent step:
+
+\(\theta = \theta - \eta\nabla_{\theta}MSE(\theta)\)
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Quick implementation}
+
+\NormalTok{lr }\OperatorTok{=} \FloatTok{0.1}
+\NormalTok{n\_epochs }\OperatorTok{=} \DecValTok{1000}
+
+\NormalTok{m }\OperatorTok{=} \BuiltInTok{len}\NormalTok{(X\_b)}
+
+\NormalTok{theta }\OperatorTok{=}\NormalTok{ np.random.randn(}\DecValTok{2}\NormalTok{, }\DecValTok{1}\NormalTok{) }\CommentTok{\# Sample theta from Gaussian distribution}
+
+\ControlFlowTok{for}\NormalTok{ \_ }\KeywordTok{in} \BuiltInTok{range}\NormalTok{(n\_epochs):}
+\NormalTok{    grad }\OperatorTok{=}\NormalTok{ (}\DecValTok{2}\OperatorTok{/}\NormalTok{m) }\OperatorTok{*}\NormalTok{ X\_b.T }\OperatorTok{@}\NormalTok{ (X\_b }\OperatorTok{@}\NormalTok{ theta }\OperatorTok{{-}}\NormalTok{  y)}
+\NormalTok{    theta }\OperatorTok{=}\NormalTok{ theta }\OperatorTok{{-}}\NormalTok{ lr }\OperatorTok{*}\NormalTok{ grad}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{theta}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+array([[0.00742783],
+       [2.92837142]])
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{best\_theta}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+array([[0.00742783],
+       [2.92837142]])
+\end{verbatim}
+
+As we can see that the value we got from the normal equation and through
+GD is the same!
+
+\hypertarget{stochastic-gradient-descent}{%
+\subsubsection{Stochastic Gradient
+Descent}\label{stochastic-gradient-descent}}
+
+\begin{itemize}
+\tightlist
+\item
+  The issue with batch gradient descent is that it goes through the
+  whole traininig set at once, making it very slow when the training set
+  is huge. To solve this a better approach is SGD. It picks a random
+  instance from the traning set and calculates the gradient based on
+  that instance.
+\item
+  This causes the loss value to bounce up and down. So unlile BGD we
+  will not see a gradual decrease but only seeing a decrease in loss on
+  average.
+\item
+  This causes the loss to never settle even after reaching a minimum
+  that also helps it get out of a local minima better than BGD.
+\item
+  To solve this we can use something called ``simulated annealing'', in
+  which we keep decreasing the learning rate gradually (learning
+  schedule).
+\end{itemize}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Implementation}
+
+\NormalTok{n\_epochs }\OperatorTok{=} \DecValTok{50}
+
+\NormalTok{t0, t1 }\OperatorTok{=} \DecValTok{5}\NormalTok{, }\DecValTok{50}
+
+\NormalTok{m }\OperatorTok{=}  \BuiltInTok{len}\NormalTok{(X\_b)}
+
+\NormalTok{theta }\OperatorTok{=}\NormalTok{ np.random.randn(}\DecValTok{2}\NormalTok{, }\DecValTok{1}\NormalTok{)}
+
+\KeywordTok{def}\NormalTok{ learning\_schedule(t):}
+    \ControlFlowTok{return}\NormalTok{ t0 }\OperatorTok{/}\NormalTok{ (t }\OperatorTok{+}\NormalTok{ t1)}
+
+\ControlFlowTok{for}\NormalTok{ epoch }\KeywordTok{in} \BuiltInTok{range}\NormalTok{(n\_epochs):}
+    \ControlFlowTok{for}\NormalTok{ i }\KeywordTok{in} \BuiltInTok{range}\NormalTok{(m):}
+\NormalTok{        idx }\OperatorTok{=}\NormalTok{ np.random.randint(m)}
+\NormalTok{        Xi }\OperatorTok{=}\NormalTok{ X\_b[idx:]}
+\NormalTok{        yi }\OperatorTok{=}\NormalTok{ y[idx:]}
+        
+\NormalTok{        grad }\OperatorTok{=} \DecValTok{2} \OperatorTok{*}\NormalTok{ Xi.T }\OperatorTok{@}\NormalTok{ (Xi }\OperatorTok{@}\NormalTok{ theta }\OperatorTok{{-}}\NormalTok{ yi) }\CommentTok{\# Do not divide by m, as it\textquotesingle{}s a single instance}
+\NormalTok{        theta }\OperatorTok{=}\NormalTok{ theta }\OperatorTok{{-}}\NormalTok{ learning\_schedule(epoch }\OperatorTok{*}\NormalTok{ m }\OperatorTok{+}\NormalTok{ i) }\OperatorTok{*}\NormalTok{ grad    }
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{theta}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+array([[0.01630277],
+       [2.92664477]])
+\end{verbatim}
+
+We arrive at almost the same values but with just 50 epochs
+
+\begin{quote}
+All data need to be Identically and Independently distributed (IID) for
+SGD to work correctly, if the data is sorted by label then it will start
+optimizing for only one label.
+\end{quote}
+
+\hypertarget{sgd-with-scikit-learn}{%
+\subsubsection{\texorpdfstring{SGD with
+\texttt{scikit-learn}}{SGD with scikit-learn}}\label{sgd-with-scikit-learn}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sgd }\OperatorTok{=}\NormalTok{ SGDRegressor(}
+\NormalTok{    max\_iter}\OperatorTok{=}\DecValTok{1000}\NormalTok{, }
+\NormalTok{    tol}\OperatorTok{=}\FloatTok{1e{-}5}\NormalTok{, }
+\NormalTok{    eta0}\OperatorTok{=}\FloatTok{0.01}\NormalTok{, }
+\NormalTok{    n\_iter\_no\_change}\OperatorTok{=}\DecValTok{100}\NormalTok{, }
+\NormalTok{    random\_state}\OperatorTok{=}\DecValTok{42}
+\NormalTok{)}
+\NormalTok{sgd.fit(X\_b, y.ravel())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+SGDRegressor(n_iter_no_change=100, random_state=42, tol=1e-05)
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sgd.coef\_}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+array([0.00404065, 2.92966112])
+\end{verbatim}
+
+\hypertarget{mini-batch-gradient-descent}{%
+\subsubsection{Mini batch Gradient
+Descent}\label{mini-batch-gradient-descent}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{batches }\OperatorTok{=}\NormalTok{ [(X\_b[i:i}\OperatorTok{+}\DecValTok{10}\NormalTok{], y[i:i}\OperatorTok{+}\DecValTok{10}\NormalTok{]) }\ControlFlowTok{for}\NormalTok{ i }\KeywordTok{in} \BuiltInTok{range}\NormalTok{(}\DecValTok{0}\NormalTok{, }\BuiltInTok{len}\NormalTok{(X\_b), }\DecValTok{10}\NormalTok{)]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{n\_epochs }\OperatorTok{=} \DecValTok{30}
+\NormalTok{theta }\OperatorTok{=}\NormalTok{ np.random.randn(}\DecValTok{2}\NormalTok{, }\DecValTok{1}\NormalTok{)}
+\NormalTok{lr }\OperatorTok{=} \FloatTok{0.01}
+
+\ControlFlowTok{for}\NormalTok{ epoch }\KeywordTok{in} \BuiltInTok{range}\NormalTok{(n\_epochs):}
+    \ControlFlowTok{for}\NormalTok{ xi, yi }\KeywordTok{in}\NormalTok{ batches:}
+\NormalTok{        m }\OperatorTok{=} \BuiltInTok{len}\NormalTok{(xi)}
+\NormalTok{        grad }\OperatorTok{=}\NormalTok{ (}\DecValTok{2}\OperatorTok{/}\NormalTok{m) }\OperatorTok{*}\NormalTok{ xi.T }\OperatorTok{@}\NormalTok{ (xi }\OperatorTok{@}\NormalTok{ theta }\OperatorTok{{-}}\NormalTok{ yi)}
+\NormalTok{        theta }\OperatorTok{=}\NormalTok{ theta }\OperatorTok{{-}}\NormalTok{ lr }\OperatorTok{*}\NormalTok{ grad   }
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{theta}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+array([[0.00396903],
+       [2.92040931]])
+\end{verbatim}
+
+\hypertarget{polynomial-regression}{%
+\chapter{Polynomial Regression}\label{polynomial-regression}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{np.random.seed(}\DecValTok{42}\NormalTok{)}
+\NormalTok{m }\OperatorTok{=} \DecValTok{200}
+\NormalTok{X }\OperatorTok{=} \DecValTok{6} \OperatorTok{*}\NormalTok{ np.random.randn(m, }\DecValTok{1}\NormalTok{)}
+\NormalTok{y }\OperatorTok{=} \DecValTok{3} \OperatorTok{*}\NormalTok{ X }\OperatorTok{**} \DecValTok{2} \OperatorTok{+}\NormalTok{ X }\OperatorTok{+} \DecValTok{2} \OperatorTok{+}\NormalTok{ np.random.randn(m, }\DecValTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{plt.plot(X, y, }\StringTok{"b."}\NormalTok{)}
+\NormalTok{plt.show()}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{figure}[H]
+
+{\centering \includegraphics{LinearModels_files/figure-pdf/random-polynomial-data-output-1.png}
+
+}
+
+\caption{Random Polynomial data}
+
+\end{figure}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{lr }\OperatorTok{=}\NormalTok{ LinearRegression()}
+\NormalTok{lr.fit(X, y)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+LinearRegression()
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{lr.coef\_, lr.intercept\_}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+(array([[1.76348997]]), array([95.59508332]))
+\end{verbatim}
+
+Simple LR doesn't do well, that is expected. We need to create some
+polynomial features
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{X\_poly }\OperatorTok{=}\NormalTok{ PolynomialFeatures(include\_bias}\OperatorTok{=}\VariableTok{False}\NormalTok{).fit\_transform(X)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{lr.fit(X\_poly, y)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+LinearRegression()
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{lr.coef\_, lr.intercept\_}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+(array([[1.01748959, 2.99727606]]), array([2.17488155]))
+\end{verbatim}
+
+This does so much better, our equation
+\(y = 3X^{2} + X + 2 + \text{Gaussian Noise}\), the predicted equation
+is \(y = 2.99X^{2} + 1.017 X + 2.17\)
+
+\hypertarget{biasvariance-tradeoff}{%
+\chapter{Bias/Variance Tradeoff}\label{biasvariance-tradeoff}}
+
+Model's generalization error is a sum of 3 different error:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Bias}:
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Arising due to wrong assumptions like thinking data is linear when it
+  is quadratic.
+\item
+  \emph{High Bias} model mostly \emph{Underfits}.
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{1}
+\tightlist
+\item
+  \textbf{Variance}:
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Arising due to model's excessive sensitivity to small variations in
+  the data.
+\item
+  Model with high degrees of freedom likely has high variance.
+\item
+  \emph{High Variance} model mostly \emph{Overfits}.
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{2}
+\tightlist
+\item
+  \textbf{Irreducible Error}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Arising due to noise in data.
+\item
+  Only way to solve is to clean the data.
+\end{itemize}
 
 
 
